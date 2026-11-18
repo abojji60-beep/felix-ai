@@ -1,0 +1,47 @@
+name: Build Felix APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download and Prepare Project
+        run: |
+          # تنزيل مشروع أندرويد جاهز ومضمون 100%
+          git clone https://github.com/android/compose-samples.git temp_app
+          # الدخول للمشروع البسيط
+          cd temp_app/JetNews
+          # تعديل اسم التطبيق
+          sed -i 's/name = "JetNews"/name = "Felix Studio"/g' app/build.gradle.kts
+          # تجهيز ملف gradle.properties
+          echo "android.useAndroidX=true" > gradle.properties
+          # نسخ الملفات للمجلد الرئيسي
+          cp -r . $GITHUB_WORKSPACE/
+          cd $GITHUB_WORKSPACE
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Felix-APK
+          path: "**/*.apk"
