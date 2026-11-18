@@ -1,0 +1,187 @@
+name: Build Real Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate Android project structure
+        run: |
+          mkdir -p app/src/main/java/com/felix/app
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/layout
+          mkdir -p gradle/wrapper
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "FelixApp"
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.10' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+
+          android {
+              namespace 'com.felix.app'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.felix.app"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:allowBackup="true"
+                  android:label="Felix Studio"
+                  android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/felix/app/MainActivity.kt <<'EOF'
+          package com.felix.app
+
+          import android.graphics.Color
+          import android.os.Bundle
+          import android.view.Gravity
+          import android.widget.LinearLayout
+          import android.widget.TextView
+          import androidx.appcompat.app.AppCompatActivity
+
+          class MainActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val layout = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setBackgroundColor(Color.parseColor("#0A1929"))
+                      setPadding(60, 60, 60, 60)
+                  }
+
+                  val title = TextView(this).apply {
+                      text = "Felix AI Studio"
+                      textSize = 32f
+                      setTextColor(Color.parseColor("#00E0FF"))
+                      gravity = Gravity.CENTER
+                  }
+
+                  val subtitle = TextView(this).apply {
+                      text = "APK حقيقي — بُني على GitHub Actions"
+                      textSize = 18f
+                      setTextColor(Color.parseColor("#FFFFFF"))
+                      gravity = Gravity.CENTER
+                      setPadding(0, 40, 0, 0)
+                  }
+
+                  val note = TextView(this).apply {
+                      text = "المرحلة 1 مكتملة ✅\nالمرحلة التالية: Felix AI Studio الكامل"
+                      textSize = 14f
+                      setTextColor(Color.parseColor("#94A3B8"))
+                      gravity = Gravity.CENTER
+                      setPadding(0, 60, 0, 0)
+                  }
+
+                  layout.addView(title)
+                  layout.addView(subtitle)
+                  layout.addView(note)
+                  setContentView(layout)
+              }
+          }
+          EOF
+
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "Project files generated ✅"
+
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: felix-studio-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
